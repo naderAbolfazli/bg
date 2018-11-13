@@ -21,9 +21,6 @@ class JsonMessage(BaseMessage):
         }
         return data
 
-    def get_raw_json(self):
-        return self.raw_json
-
     def get_json_str(self):
         return json_handler.dumps(self.get_json_object())
 
@@ -43,3 +40,17 @@ class JsonMessage(BaseMessage):
             raise ValueError(Error.none_or_invalid_attribute)
 
         return cls(raw_json=raw_json)
+
+    @staticmethod
+    def is_raw_location_message(json):
+        json_dict = json_handler.loads(json.get('rawJson'))
+        raw_json_type = json_dict.get('dataType') if json_dict else None
+
+        return raw_json_type == MessageType.location_message
+
+    @staticmethod
+    def is_raw_contact_message(json):
+        json_dict = json_handler.loads(json.get('rawJson'))
+        raw_json_type = json_dict.get('dataType') if json_dict else None
+
+        return raw_json_type == MessageType.contact_message

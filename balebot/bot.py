@@ -1,27 +1,34 @@
-import functools
 import asyncio
+import functools
+import io
+import sys
+
 import aiohttp
+from PIL import Image
 
-from balebot.models.base_models import response
-from balebot.connection.network import Network
 from balebot.bale_future import BaleFuture
-from balebot.models.client_requests import *
-
+from balebot.connection.network import Network
 from balebot.models.base_models import BotQuotedMessage, FatSeqUpdate, GroupPeer, Request, UserPeer
+from balebot.models.base_models import response
+from balebot.models.client_requests import *
 from balebot.models.client_requests.sequence.get_last_sequence import GetLastSequence
 from balebot.models.constants.request_to_response_mapper import RequestToResponseMapper
 from balebot.models.constants.service_type import ServiceType
-from balebot.models.messages import BaseMessage, TextMessage
-from balebot.utils.util_functions import get_file_crc32, get_file_size, get_file_buffer
+from balebot.models.messages import BaseMessage, TextMessage, PhotoMessage, DocumentMessage
+from balebot.utils.logger import Logger
+from balebot.utils.util_functions import get_file_crc32, get_file_size, get_file_buffer, get_image_thumbnails
+from config import BotConfig
+from constants import UserData, LogMessage
 
 
 class Bot:
-    def __init__(self, loop, network, bale_futures, timeout):
+    def __init__(self, loop, token, incoming_queue, outgoing_queue, bale_futures, timeout):
         self._loop = loop
-        if isinstance(network, Network):
-            self._network = network
+        self.network = Network(token=token,
+                               incoming_queue=incoming_queue,
+                               outgoing_queue=outgoing_queue,
+                               loop=loop)
 
-        self._network = network
         self._bale_futures = bale_futures
         self.timeout = timeout
 
@@ -41,37 +48,37 @@ class Bot:
             self._bale_futures.remove(bale_future)
 
     def send_request(self, request_data):
-        self._network.send(request_data)
+        self.network.send(request_data)
 
     def reply(self, update, message, success_callback=None, failure_callback=None, **kwargs):
         if isinstance(update, FatSeqUpdate) and update.is_message_update():
             message_id = update.body.random_id
             user_peer = update.get_effective_user()
             if isinstance(message, BaseMessage):
-                self.send_message(message, user_peer,
-                                  BotQuotedMessage(message_id, user_peer),
-                                  success_callback=success_callback,
-                                  failure_callback=failure_callback,
-                                  **kwargs)
+                return self.send_message(message, user_peer,
+                                         BotQuotedMessage(message_id, user_peer),
+                                         success_callback=success_callback,
+                                         failure_callback=failure_callback,
+                                         **kwargs)
             else:
-                self.send_message(TextMessage(message), user_peer,
-                                  BotQuotedMessage(message_id, user_peer),
-                                  success_callback=success_callback,
-                                  failure_callback=failure_callback,
-                                  **kwargs)
+                return self.send_message(TextMessage(message), user_peer,
+                                         BotQuotedMessage(message_id, user_peer),
+                                         success_callback=success_callback,
+                                         failure_callback=failure_callback,
+                                         **kwargs)
 
     def respond(self, update, message, success_callback=None, failure_callback=None, **kwargs):
         user_peer = update.get_effective_user()
         if isinstance(message, BaseMessage):
-            self.send_message(message, user_peer,
-                              success_callback=success_callback,
-                              failure_callback=failure_callback,
-                              **kwargs)
+            return self.send_message(message, user_peer,
+                                     success_callback=success_callback,
+                                     failure_callback=failure_callback,
+                                     **kwargs)
         else:
-            self.send_message(TextMessage(message), user_peer,
-                              success_callback=success_callback,
-                              failure_callback=failure_callback,
-                              **kwargs)
+            return self.send_message(TextMessage(message), user_peer,
+                                     success_callback=success_callback,
+                                     failure_callback=failure_callback,
+                                     **kwargs)
 
     # messaging
     def send_message(self, message, peer, quoted_message=None, random_id=None, success_callback=None,
@@ -79,6 +86,16 @@ class Bot:
         receiver = peer
         request_body = SendMessage(message=message, receiver_peer=receiver,
                                    quoted_message=quoted_message, random_id=random_id)
+        request = Request(service=ServiceType.Messaging, body=request_body)
+        self.set_future(request.id, request_body, success_callback, failure_callback, **kwargs)
+        self.send_request(request.get_json_str())
+        return request
+
+    def edit_message(self, message, user_peer, random_id, success_callback=None, failure_callback=None,
+                     **kwargs):
+        text_message = message
+        receiver = user_peer
+        request_body = EditMessage(updated_message=text_message, peer=receiver, random_id=random_id)
         request = Request(service=ServiceType.Messaging, body=request_body)
         self.set_future(request.id, request_body, success_callback, failure_callback, **kwargs)
         self.send_request(request.get_json_str())
@@ -121,7 +138,7 @@ class Bot:
     def get_last_seq(self, success_callback=None, failure_callback=None, **kwargs):
         request_body = GetLastSequence()
         request = Request(service=ServiceType.SequenceUpdate, body=request_body)
-        self.set_future(request.id, request_body, success_callback, failure_callback, ** kwargs)
+        self.set_future(request.id, request_body, success_callback, failure_callback, **kwargs)
         self.send_request(request.get_json_str())
         return request
 
@@ -149,16 +166,19 @@ class Bot:
 
         def file_download_url_success(result, user_data):
             async def get_data(download_url):
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(download_url) as download_response:
-                        status = download_response.status
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(download_url) as download_response:
+                            status = download_response.status
 
-                        if status == 200:
-                            byte_stream = await download_response.content.read()
-                            future.set_user_data(byte_stream=byte_stream)
-                            future.resolve(response=None)
-                        else:
-                            future.reject(response=None)
+                            if status == 200:
+                                byte_stream = await download_response.content.read()
+                                future.set_user_data(byte_stream=byte_stream)
+                                future.resolve(response=None)
+                            else:
+                                future.reject(response=None)
+                except Exception as e:
+                    future.reject(response=None)
 
             url = result.body.url
             asyncio.ensure_future(get_data(url))
@@ -193,14 +213,17 @@ class Bot:
             headers = {'filesize': str(file_size)}
 
             async def upload_data():
-                async with aiohttp.ClientSession() as session:
-                    async with session.put(url, data=data, headers=headers) as upload_response:
-                        status = upload_response.status
-                        if status == 200:
-                            future.set_user_data(file_id=file_id, user_id=user_id, url=url, dup=dup)
-                            future.resolve(response=None)
-                        else:
-                            future.reject(response=None)
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.put(url, data=data, headers=headers) as upload_response:
+                            status = upload_response.status
+                            if status == 200:
+                                future.set_user_data(file_id=file_id, user_id=user_id, url=url, dup=dup)
+                                future.resolve(response=None)
+                            else:
+                                future.reject(response=None)
+                except Exception as e:
+                    future.reject(response=None)
 
             asyncio.ensure_future(upload_data())
 
@@ -210,3 +233,74 @@ class Bot:
         self.get_file_upload_url(size=file_size, crc=file_crc32, file_type=file_type,
                                  success_callback=file_upload_url_success,
                                  failure_callback=file_upload_url_failure)
+
+    def send_photo(self, user_peer, image, caption_text="", name="", file_storage_version=1, mime_type="image/jpeg",
+                   success_callback=None, failure_callback=None, **kwargs):
+        image_buffer = get_file_buffer(file=image)
+        file_size = sys.getsizeof(image_buffer)
+        im = Image.open(io.BytesIO(image_buffer))
+        width, height = im.size
+        thumb = get_image_thumbnails(im)
+
+        def success_upload_image(user_data, server_response):
+            file_id = str(server_response.get("file_id", None))
+            access_hash = str(server_response.get("user_id", None))
+            kwargs.update(
+                {UserData.file_id: file_id, UserData.file_access_hash: access_hash, UserData.file_size: file_size,
+                 UserData.width: width, UserData.height: height, UserData.thumb: thumb, UserData.file_name: name})
+            photo_message = PhotoMessage(file_id=file_id, access_hash=access_hash, name=name, file_size=file_size,
+                                         mime_type=mime_type, file_storage_version=file_storage_version, width=width,
+                                         height=height, caption_text=TextMessage(text=caption_text), thumb=thumb)
+            self.send_message(message=photo_message, peer=user_peer, success_callback=success_callback,
+                              failure_callback=failure_callback, kwargs=kwargs)
+
+        def failure_upload_image(user_data, server_response):
+            user_data = kwargs
+            my_logger = Logger.get_logger()
+
+            user_data = user_data.get(UserData.kwargs)
+            user_peer_getted = user_data.get(UserData.user_peer)
+            step_name = user_data.get(UserData.step_name)
+            image_name = user_data.get(UserData.image)
+            national_id = user_data.get(UserData.national_id)
+            receipt_id = user_data.get(UserData.receipt_id)
+            dinar_request_id = user_data.get(UserData.dinar_request_id)
+            token = user_data.get(UserData.token)
+            amount = user_data.get(UserData.dinar_amount)
+            voucher_datetime = user_data.get(UserData.datetime)
+            p = BotConfig.pay_photo
+            add_voucher(dinar_request_id, receipt_id, token, amount,
+                        p['fileId'], p['accessHash'],
+                        p['fileSize'], p['name'],
+                        p['thumb']['thumb'],
+                        p['thumb']['width'], p['thumb']['height'],
+                        voucher_datetime)
+            message = TextMessage(
+                'در ارسال تصویر حواله شما مشکلی پیش آمده است.\nمیتوانید در قسمت مشاهده رسیدهای من در منوی اصلی شماره حواله خود را دریافت کنید.')
+            self.send_message(message=message, peer=user_peer_getted)
+            my_logger.error(LogMessage.upload_voucher_failed,
+                            extra={UserData.user_id: user_peer_getted.peer_id, UserData.step_name: step_name,
+                                   UserData.image: image_name, UserData.receipt_id: receipt_id,
+                                   UserData.dinar_request_id: dinar_request_id, UserData.token: token,
+                                   UserData.amount: amount,
+                                   UserData.national_id: national_id, UserData.voucher_datetime: voucher_datetime})
+
+        self.upload_file(file=image, file_type="file", success_callback=success_upload_image,
+                         failure_callback=failure_upload_image)
+
+    def send_document(self, update, doc_file, mime_type, caption_text="", file_type="file", name="",
+                      file_storage_version=1, success_callback=None, failure_callback=None, **kwargs):
+        file_size = sys.getsizeof(doc_file)
+
+        def success_upload_document(user_data, server_response):
+            file_id = str(server_response.get("file_id", None))
+            access_hash = str(server_response.get("user_id", None))
+            document_message = DocumentMessage(file_id=file_id, access_hash=access_hash, name=name,
+                                               file_size=file_size, mime_type=mime_type,
+                                               caption_text=TextMessage(text=caption_text),
+                                               file_storage_version=file_storage_version)
+            self.respond(update=update, message=document_message, success_callback=success_callback,
+                         failure_callback=failure_callback, kwargs=kwargs)
+
+        self.upload_file(file=doc_file, file_type=file_type, success_callback=success_upload_document,
+                         failure_callback=failure_callback)

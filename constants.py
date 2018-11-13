@@ -9,7 +9,7 @@ class ButtonAction:
 
 
 class Patterns:
-    phone_number_pattern = "(^09[0-9]{9}$)|(^9[0-9]{9}$)"
+    phone_number_pattern = "(^([+]989[0-9]{9})|([+]۹۸۹[۰-۹]{9})$)"
     pass
 
 
@@ -20,12 +20,20 @@ class MimeType:
 
 
 class BotMessage:
+    photo_uploading = "بارگذاری تصویر..."
+    photo_downloading = "بارگیری تصویر..."
+    photo_name = "photo"
+    me_info = "*نام:* {}\n*نام خانوادگی:* {}\n*نام کاربری:* {}\n*شماره تلفن:* {}"
+    wrong_phone_number = "شماره تلفن صحیح نیست لطفا مجدد وارد کنید:🔢\nبا فرمت 989123456789+"
+    please_wait = "لطفا کمی صبر کنید..."
+    enter_your_pass = "رمز عبور خودرا وارد کنید"
+    message_not_sent = "ارسال پیام ناموفق بود"
     message_sent = "پیام شما ارسال شد"
     enter_message_to_send_message = "پیام خود را وارد کنید"
     enter_username_to_send_message = "نام کاربری شخص مورد نظر خود را ارسال کنید"
     choose_from_menu = "یکی از موارد زیر را انتخاب کنید"
     enter_received_code = "لطفا کد دریافتی خود را وارد کنید:"
-    greeting = "سلام به بازوی *تلگرام* بله خوش آمدید\nلطفا شماره تلفن خود را وارد کنید:"
+    greeting = "سلام به بازوی *تلگرام* بله خوش آمدید\nلطفا شماره تلفن خود را وارد کنید:🔢\nبا فرمت 989123456789+"
 
 
 class ConversationData:
@@ -37,6 +45,9 @@ class ConversationData:
 
 
 class ButtonMessage:
+    logout = "خروج از حساب"
+    show_open_conversation = "مشاهده مکالمه های باز"
+    receive_message = "دریافت پیام"
     sending_message = "ارسال پیام"
     show_me = "نمایش اطلاعات من"
     entering_webogram = "ورود به وبوگرام"
@@ -50,6 +61,13 @@ class SendingAttempt:
 
 
 class Step:
+    sign_in_code = "sign_in_code"
+    ask_pass = "ask_pass"
+    get_dialogs_done = "get_dialogs_done"
+    get_messages_done = "get_messages_done"
+    check_session_done = "check_session_done"
+    checking_session = "checking_session"
+    wrong_phone_number = "wrong_phone_number"
     finish_and_register = "finish_and_register"
     wrong_location = "wrong_location"
     finish_and_relocate = "finish_and_relocate"
@@ -69,6 +87,7 @@ class Step:
 
 
 class LogMessage:
+    successful_profpic_upload = "successful uploading of profile picture"
     location_deleting = "location deleted successfully"
     location_updating = "successful updating of location"
     location_registering = "successful registering of location"
@@ -79,6 +98,11 @@ class LogMessage:
 
 
 class UserData:
+    succedent_message = "succedent_message"
+    photo_message = "photo_message"
+    text_message = "text_message"
+    url = "url"
+    file_id = "file_id"
     latitude = "latitude"
     longitude = "longitude"
     location_id = "location_id"

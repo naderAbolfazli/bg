@@ -1,17 +1,19 @@
 import asyncio
 import traceback
 import aiohttp
+import backoff
+
+from balebot.config import Config
 from balebot.utils.logger import Logger
 
 
 class Network:
     """ network layer main class """
 
-    def __init__(self, base_url, token, incoming_queue=None, outgoing_queue=None, loop=None):
+    def __init__(self, token, incoming_queue=None, outgoing_queue=None, loop=None):
 
         self.logger = Logger.get_logger()
-
-        self._base_url = base_url
+        self._base_url = Config.base_url
         self._token = token
         self._running = False
         self._incoming_queue = incoming_queue or asyncio.Queue()
@@ -22,13 +24,15 @@ class Network:
 
         self._listener_task = None
         self._sender_task = None
+        self._heartbeat = Config.heartbeat
 
+    @backoff.on_predicate(backoff.fibo)
     async def connect(self):
         if self._ws is None:
 
             try:
                 self._session = aiohttp.ClientSession(loop=self._loop)
-                self._ws = await self._session.ws_connect(self.construct_url())
+                self._ws = await self._session.ws_connect(self.construct_url(),heartbeat=self._heartbeat,headers={"source":"python3.5"})
                 self.logger.debug('connect: {}'.format(self.construct_url()))
             except Exception as e:
                 await self.disconnect()
@@ -40,7 +44,7 @@ class Network:
             try:
                 if self._session.closed:
                     self._session = aiohttp.ClientSession(loop=self._loop)
-                self._ws = await self._session.ws_connect(self.construct_url())
+                self._ws = await self._session.ws_connect(self.construct_url(),heartbeat=self._heartbeat,headers={"source":"python3.5"})
                 self.logger.debug('reconnect: {}'.format(self.construct_url()))
             except Exception as e:
                 await self.disconnect()
