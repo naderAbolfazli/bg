@@ -15,7 +15,7 @@ class Bot:
 
     loop = asyncio.get_event_loop()
 
-    updater = Updater(token=BotConfig.bot_token, user_id="1698782820")
+    updater = Updater(token=BotConfig.bot_token, user_id=1698782820)
     # Define dispatcher
     dispatcher = updater.dispatcher
     # Get bot

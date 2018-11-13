@@ -2,9 +2,6 @@ from telethon import TelegramClient, utils
 from telethon.errors import SessionPasswordNeededError, PhoneNumberUnoccupiedError
 import hashlib
 
-from telethon.tl.types import User
-
-from balebot.models.messages import TextMessage, PhotoMessage
 from config import DbConfig
 
 api_id = 480179

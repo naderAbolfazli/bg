@@ -2,6 +2,7 @@ import os
 
 
 class BotConfig:
+    webhook = "https://balegram.herokuapp.com/"
     base_url = os.environ.get('BASE_URL', None) or "wss://api.bale.ai/v1/bots/"
     # bot_token = os.environ.get('TOKEN', None) or "ab876eea51b5fd8121e2c20f8baed500c260add5"
     bot_token = os.environ.get('TOKEN', None) or "0d0a1ca179684e075814ae4a8319b064ee84f28c"

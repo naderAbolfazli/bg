@@ -7,11 +7,12 @@ from bot.callbacks import profpic_upload_success, profpic_upload_failure, final_
     send_message_done, step_success, step_failure
 from bot.db_handler import check_user, add_registered_session, remove_current_session
 from bot.models.base import Base, engine
+from config import BotConfig
+from constants import *
 from python_bale_bot.filters import *
 from python_bale_bot.handlers import *
 from python_bale_bot.models.messages import *
 from python_bale_bot.utils.logger import Logger
-from constants import *
 
 my_logger = Logger.get_logger()
 balegram_bot = Bot()
@@ -296,4 +297,5 @@ def get_messages_done(bot, update, future):
 ##############################
 
 # updater.run()
+bot.set_webhook(BotConfig.webhook)
 updater.start_webhook()

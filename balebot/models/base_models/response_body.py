@@ -1,2 +1,0 @@
-class ResponseBody:
-    pass

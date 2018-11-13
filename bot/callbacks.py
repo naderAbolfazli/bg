@@ -2,11 +2,10 @@ import asyncio
 import datetime
 import os
 
-from balebot.utils.logger import Logger
-
-from balebot.models.messages import TemplateMessageButton, TemplateMessage
-from balebot.models.messages.photo_message import PhotoMessage
-from balebot.models.messages.text_message import TextMessage
+from python_bale_bot.models.messages import TemplateMessageButton, TemplateMessage
+from python_bale_bot.models.messages.photo_message import PhotoMessage
+from python_bale_bot.models.messages.text_message import TextMessage
+from python_bale_bot.utils.logger import Logger
 
 from bot.api_handler.telethon_handler import send_message
 from config import BotConfig
